@@ -1,0 +1,481 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: PensionJobs API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: jobs
+    description: Job listings
+  - name: subscriptions
+    description: Email notification subscriptions
+  - name: users
+    description: User profile management
+  - name: stats
+    description: Statistics and aggregates
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List job postings (paginated, with filters)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 12
+        - name: pension
+          in: query
+          schema:
+            type: string
+            description: Pension plan filter (e.g. OMERS, OPSEU, AMAPCEO)
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: employer
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: preview
+          in: query
+          schema:
+            type: boolean
+            description: If true, returns limited preview results for unauthenticated users
+      responses:
+        "200":
+          description: Paginated job listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobListResponse"
+
+  /jobs/{jobId}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a single job posting
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Get summary stats for the job board
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/by-pension:
+    get:
+      operationId: getStatsByPension
+      tags: [stats]
+      summary: Get job count grouped by pension plan
+      responses:
+        "200":
+          description: Job counts by pension plan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PensionStats"
+
+  /stats/by-category:
+    get:
+      operationId: getStatsByCategory
+      tags: [stats]
+      summary: Get job count grouped by category
+      responses:
+        "200":
+          description: Job counts by category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryStats"
+
+  /stats/recent-jobs:
+    get:
+      operationId: getRecentJobs
+      tags: [stats]
+      summary: Get recently posted jobs
+      responses:
+        "200":
+          description: Recent jobs list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+
+  /subscriptions:
+    get:
+      operationId: listSubscriptions
+      tags: [subscriptions]
+      summary: Get current user's subscriptions
+      security:
+        - clerkAuth: []
+      responses:
+        "200":
+          description: User subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subscription"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createSubscription
+      tags: [subscriptions]
+      summary: Create a new subscription
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubscriptionBody"
+      responses:
+        "201":
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "401":
+          description: Unauthorized
+
+  /subscriptions/{subscriptionId}:
+    delete:
+      operationId: deleteSubscription
+      tags: [subscriptions]
+      summary: Delete a subscription
+      security:
+        - clerkAuth: []
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      security:
+        - clerkAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+    put:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    clerkAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        employer:
+          type: string
+        pensionPlan:
+          type: string
+          description: OMERS, OPSEU, AMAPCEO, etc.
+        location:
+          type: string
+        province:
+          type: string
+        category:
+          type: string
+        salaryMin:
+          type: number
+          nullable: true
+        salaryMax:
+          type: number
+          nullable: true
+        salaryText:
+          type: string
+          nullable: true
+        description:
+          type: string
+        applyUrl:
+          type: string
+        postedAt:
+          type: string
+          format: date-time
+        closingDate:
+          type: string
+          nullable: true
+          format: date-time
+        isActive:
+          type: boolean
+        scrapedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - employer
+        - pensionPlan
+        - location
+        - province
+        - category
+        - description
+        - applyUrl
+        - postedAt
+        - isActive
+        - scrapedAt
+
+    JobListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        hasMore:
+          type: boolean
+      required:
+        - jobs
+        - total
+        - page
+        - limit
+        - hasMore
+
+    StatsSummary:
+      type: object
+      properties:
+        totalJobs:
+          type: integer
+        totalEmployers:
+          type: integer
+        newThisWeek:
+          type: integer
+        pensionPlans:
+          type: integer
+      required:
+        - totalJobs
+        - totalEmployers
+        - newThisWeek
+        - pensionPlans
+
+    PensionStats:
+      type: object
+      properties:
+        pensionPlan:
+          type: string
+        count:
+          type: integer
+      required:
+        - pensionPlan
+        - count
+
+    CategoryStats:
+      type: object
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+      required:
+        - category
+        - count
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        pensionPlan:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        keyword:
+          type: string
+          nullable: true
+        emailFrequency:
+          type: string
+          enum: [daily, weekly, instant]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - emailFrequency
+        - createdAt
+
+    CreateSubscriptionBody:
+      type: object
+      properties:
+        pensionPlan:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        keyword:
+          type: string
+          nullable: true
+        emailFrequency:
+          type: string
+          enum: [daily, weekly, instant]
+      required:
+        - emailFrequency
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        jobAlertEmail:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - clerkUserId
+        - email
+        - createdAt
+
+    UpdateUserBody:
+      type: object
+      properties:
+        displayName:
+          type: string
+          nullable: true
+        jobAlertEmail:
+          type: string
+          nullable: true
